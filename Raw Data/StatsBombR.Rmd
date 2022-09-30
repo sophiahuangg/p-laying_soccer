@@ -22,24 +22,16 @@ euro2020 <- fc %>%
 
 euro2020matches <- FreeMatches(euro2020)
 
-euro2020data <- allclean(free_allevents(MatchesDF = euro2020matches, Parallel = T))
+euro2020data <- free_allevents(MatchesDF = euro2020matches, Parallel = T)
 ```
-
 ```{r, warning=FALSE}
 euro2022 <- fc %>%
   filter(competition_id==53)
 
 euro2022matches <- FreeMatches(euro2022)
 
-euro2022data <- allclean(free_allevents(MatchesDF = euro2022matches, Parallel = T))
+euro2022data <- free_allevents(MatchesDF = euro2022matches, Parallel = T)
 ```
-
-```{r}
-euro2020 <- write.csv(euro2020data,"euro2020rawdata.csv")
-
-euro2022 <- write.csv(euro2022data,"euro2022rawdata.csv")
-```
-
 
 
 

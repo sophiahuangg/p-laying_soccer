@@ -24,6 +24,7 @@ euro2020matches <- FreeMatches(euro2020)
 
 euro2020data <- free_allevents(MatchesDF = euro2020matches, Parallel = T)
 ```
+
 ```{r, warning=FALSE}
 euro2022 <- fc %>%
   filter(competition_id==53)

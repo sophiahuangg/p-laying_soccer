@@ -1,0 +1,106 @@
+---
+title: "StatsBombR"
+output: html_document
+date: '2022-09-30'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(StatsBombR)
+```
+
+```{r}
+fc <- FreeCompetitions()
+```
+
+```{r, warning=FALSE}
+euro2022 <- fc %>%
+  filter(competition_id==53)
+
+euro2022matches <- FreeMatches(euro2022)
+
+euro2022data <- free_allevents(MatchesDF = euro2022matches, Parallel = T)
+```
+
+```{r}
+colnames(euro2022data)
+```
+
+```{r}
+nrow(table(euro2022data$match_id))
+
+table(euro2022data$match_id)
+```
+
+```{r, warning=FALSE}
+lineups <- euro2022data %>%
+  filter(type.name == "Starting XI")
+```
+
+```{r}
+table(lineups$period)
+```
+
+```{r}
+teams <- lineups %>%
+  group_by(team.name) %>%
+  summarize(n())
+
+sum(teams$`n()`)
+```
+
+```{r}
+match1 <- euro2022data %>%
+  filter(match_id == 3835319)
+```
+
+```{r}
+trackball <- match1 %>%
+  select(c("timestamp", "location"))
+
+trackball <- trackball[!duplicated(trackball), ] %>%
+  unnest(location) %>% 
+  group_by(timestamp) %>% 
+  mutate(key = row_number()) %>% 
+  spread(key, location) %>%
+  rename(x = "1") %>%
+  rename(y = "2") %>%
+  select(x,y)
+
+trackball <- trackball %>%
+  cbind(row = 1:nrow(trackball))
+```
+```{r}
+library(ggplot2)
+library(gganimate)
+```
+
+```{r}
+a <- ggplot(trackball, aes(x,y)) +
+  geom_point() + 
+  transition_time(row) +
+  ease_aes('linear')
+```
+
+```{r}
+animate(a, duration = 300)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

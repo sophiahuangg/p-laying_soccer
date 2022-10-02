@@ -1,0 +1,35 @@
+---
+title: "StatsBombR"
+output: html_document
+date: '2022-09-30'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(StatsBombR)
+```
+
+```{r}
+fc <- FreeCompetitions()
+```
+
+```{r, warning=FALSE}
+euro2020 <- fc %>%
+  filter(competition_id==55)
+
+euro2020matches <- FreeMatches(euro2020)
+
+euro2020data <- free_allevents(MatchesDF = euro2020matches, Parallel = T)
+```
+```{r, warning=FALSE}
+euro2022 <- fc %>%
+  filter(competition_id==53)
+
+euro2022matches <- FreeMatches(euro2022)
+
+euro2022data <- free_allevents(MatchesDF = euro2022matches, Parallel = T)
+```
+

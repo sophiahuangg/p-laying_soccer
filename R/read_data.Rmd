@@ -1,0 +1,32 @@
+---
+title: "taylor_readdata"
+output: pdf_document
+date: '2022-10-02'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(StatsBombR)
+library(ggplot2)
+library(grid)
+```
+
+## Reading data in
+```{r}
+Comp <- FreeCompetitions()
+Matches <- FreeMatches(Comp)
+Matches = Matches %>% filter(competition.competition_name=="UEFA Euro")
+data360 <- StatsBombFree360Events(MatchesDF = Matches, Parallel = T)
+
+events <- StatsBombFreeEvents(MatchesDF = Matches, Parallel = T)
+events <- allclean(events)
+events <- get.opposingteam(events)
+
+data360 = data360 %>% rename(id = event_uuid)
+
+events = events %>% left_join(data360, by = c("id" = "id"))
+
+events = events %>% rename(match_id = match_id.x) %>% select(-match_id.y)
+# events has both 360 data and matches
+```

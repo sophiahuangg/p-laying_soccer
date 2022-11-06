@@ -1,0 +1,262 @@
+---
+title: "randomforest_fivefeatures"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, cache=TRUE, fig.align = "center")
+options(digits=5, pillar.sigfig = 7)
+library(dplyr)
+library(plyr)
+library(StatsBombR)
+library(ggplot2)
+
+library(randomForest)
+library(tidyverse)
+library(ISLR)
+library(tidymodels)
+library(readr)
+```
+
+```{r warning=F, message=F, echo=F}
+# list of all free competitions
+fc <- FreeCompetitions()
+
+# id 53 is 2022 women's EUFA
+euro2022 <- fc %>%
+  filter(competition_id==53)
+
+# pulls matches from euro2022 competition
+euro2022matches <- FreeMatches(euro2022)
+
+# dataframe of free event data
+euro2022data <- free_allevents(MatchesDF = euro2022matches, Parallel = T)
+
+euro2022dataclean <- allclean(euro2022data)
+```
+
+```{r}
+fivefeatures <- read_csv("C:/Users/juye/p-ai/p-laying_soccer/R/Julie/fivefeatures_euro2022.csv", 
+    col_types = cols(match_id = col_integer(), 
+        fouls = col_integer(), score = col_integer()))
+fivefeatures
+```
+
+```{r}
+# import anjali's and sophia's
+anjali_sophia <- read_csv("C:/Users/juye/p-ai/p-laying_soccer/R/Julie/anjali_sophia_features.csv", 
+                                   col_types = cols(X1 = col_skip(),
+                                                    match_id = col_integer(),
+                                                    numthroughballs = col_integer(), 
+                                                    standing_diving = col_integer(),
+                                                    outcome = col_skip())) %>%
+  rename(team_name = team.name)
+anjali_sophia
+```
+
+```{r}
+teamnames <-
+  euro2022dataclean %>%
+  select(team.id, team.name) %>%
+  distinct() %>%
+  arrange(team.id) %>%
+  dplyr::rename(team_name = team.name)
+teamnames
+```
+
+```{r}
+# write.csv(fivefeatures,"C:/Users/juye/p-ai/p-laying_soccer/R/Julie/teamnameids.csv", row.names = FALSE)
+```
+
+
+```{r}
+aser_mohamed <- read_csv("C:/Users/juye/p-ai/p-laying_soccer/R/Julie/aser_mohamed_features.csv", 
+    col_types = cols(X1 = col_skip(), match_id = col_integer(), 
+        Team_id = col_integer(), Total_shots = col_integer(), 
+        count_dribbles = col_integer(), score = col_skip(),
+        outcome = col_skip()))
+```
+
+
+```{r}
+fivefeatclean <- fivefeatures %>%
+  join(anjali_sophia, by=c("match_id", "team_name")) %>%
+  join(teamnames, by=c("team_name")) %>%
+  left_join(aser_mohamed, by=c('match_id'='match_id', 'team.id'='Team_id')) %>%
+  arrange(match_id) %>%
+  select(-away_team_name, -outcome, outcome) %>%
+  # select(-match_id, -team_name, -away_team_name, -score, -team_id, -outcome, outcome) %>%
+  mutate(outcome = as.factor(outcome))  %>% select(-Previous_matches_win_percentage)
+
+fivefeatclean <- fivefeatclean %>%
+  select(-match_id, -team_name, -score, -team.id)
+```
+
+```{r}
+combinedfeatures <- fivefeatures %>%
+  join(anjali_sophia, by=c("match_id", "team_name")) %>%
+  join(teamnames, by=c("team_name")) %>%
+  left_join(aser_mohamed, by=c('match_id'='match_id', 'team_id'='Team_id')) %>%
+  # arrange(match_id) %>%
+  select(-away_team_name, -score, -outcome, score, outcome) %>%
+  # select(-match_id, -team_name, -away_team_name, -score, -team_id, -outcome, outcome) %>%
+  mutate(team_name = as.factor(team_name),
+         outcome = as.factor(outcome))
+  # select(-Previous_matches_win_percentage)
+combinedfeatures
+```
+
+
+```{r}
+# write.csv(combinedfeatures, "C:/Users/juye/p-ai/p-laying_soccer/R/Julie/combinedfeatures.csv", row.names = FALSE)
+```
+
+
+
+```{r}
+fivefeatclean
+```
+
+
+```{r}
+set.seed(470)
+euro22_split <- initial_split(fivefeatclean, prop = 0.75)
+euro22_train <- training(euro22_split)
+euro22_test <- testing(euro22_split)
+```
+
+```{r}
+euro22_rf_wflow
+```
+
+
+```{r}
+# recipe
+euro22_recipe <-
+  recipe(outcome ~ ., data = euro22_train) 
+
+# model
+euro22_rf <- rand_forest(mtry = tune(), trees = tune()) %>%
+  set_engine('ranger', importance = 'permutation') %>%
+  set_mode('classification')
+
+# workflow
+euro22_rf_wflow <- workflow() %>%
+  add_model(euro22_rf) %>%
+  add_recipe(euro22_recipe)
+
+# CV
+set.seed(47)
+euro22_vfold <- vfold_cv(euro22_train, v=4)
+
+# param
+rf_grid <- grid_regular(mtry(range = c(1,13)),
+                         trees(range = c(1, 401)),
+                         levels = c(10, 9))
+
+# tuning
+euro22_rf_tuned <- euro22_rf_wflow %>%
+  tune_grid(resamples = euro22_vfold, 
+           grid = rf_grid)
+
+# plot
+euro22_rf_tuned %>%
+  autoplot()
+```
+
+
+```{r}
+euro22_rf_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  arrange(desc(mean))
+```
+
+
+```{r}
+euro22_rf_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  ggplot() + 
+  geom_line(aes(x = trees, y = mean, color = as.factor(mtry)))
+```
+
+
+```{r}
+euro22_rf_best <- finalize_model(
+  euro22_rf,
+  select_best(euro22_rf_tuned, 'accuracy')
+)
+euro22_rf_best
+```
+> The best model has parameters mtry=1 and trees=1.
+
+```{r}
+euro22_rf_final <-
+  workflow() %>%
+  add_model(euro22_rf_best) %>%
+  add_recipe(euro22_recipe) %>%
+  fit(data = euro22_train)
+
+euro22_rf_final
+
+euro22_rf_final %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  ggplot() +
+  geom_point(aes(x = duration_perc, y = .pred_class))
+
+euro22_rf_final %>%
+  extract_fit_parsnip() %>%
+  vip(geom = "point")
+```
+# Test predictions
+```{r}
+euro22_rf_final %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  summarize(accuracy = mean(.pred_class == outcome))
+```
+
+
+# Now let's try bagging!
+
+
+```{r}
+# bagging!
+euro22_recipe <-
+  recipe(outcome ~ ., data = euro22_train)
+
+# num_trees <- 500???
+euro22_bag <- rand_forest(mtry = 13) %>%
+  set_engine('ranger', importance = 'permutation', oob.error=TRUE) %>%
+  set_mode('classification')
+
+euro22_bag_wflow <- workflow() %>%
+  add_model(euro22_bag) %>%
+  add_recipe(euro22_recipe)
+
+# fit
+euro22_bag_fit <-
+  euro22_bag_wflow %>%
+  fit(data = euro22_train)
+
+euro22_bag_fit
+```
+
+
+```{r}
+# plot
+library(vip)
+euro22_bag_fit %>%
+  pull_workflow_fit() %>%
+  vip()
+
+# fit
+euro22_bag_fit %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  summarize(accuracy = mean(.pred_class==outcome))
+```
+
+

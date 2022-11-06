@@ -8,7 +8,7 @@ date: '2022-09-30'
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, warning=FALSE}
 library(dplyr)
 library(tidyverse)
 library(StatsBombR)
@@ -16,6 +16,15 @@ library(StatsBombR)
 
 ```{r}
 fc <- FreeCompetitions()
+```
+
+```#{r, warning=FALSE}
+euro2020 <- fc %>%
+  filter(competition_id==53)
+
+euro2020matches <- FreeMatches(euro2020)
+
+euro2020data <- free_allevents(MatchesDF = euro2020matches, Parallel = T)
 ```
 
 ```{r, warning=FALSE}
@@ -33,12 +42,11 @@ colnames(euro2022data)
 
 ```{r}
 nrow(table(euro2022data$match_id))
-
-table(euro2022data$match_id)
+length(table(euro2022data$match_id))
 ```
 
 ```{r, warning=FALSE}
-lineups <- euro2022data %>%
+lineups <- euro2020data %>%
   filter(type.name == "Starting XI")
 ```
 
@@ -53,10 +61,13 @@ teams <- lineups %>%
 
 sum(teams$`n()`)
 ```
+```{r}
+table(euro2022data$match_id)
+```
 
 ```{r}
-match1 <- euro2022data %>%
-  filter(match_id == 3835319)
+match1 <- euro2020data %>%
+  filter(match_id == 3795220)
 ```
 
 ```{r}
@@ -75,25 +86,51 @@ trackball <- trackball[!duplicated(trackball), ] %>%
 trackball <- trackball %>%
   cbind(row = 1:nrow(trackball))
 ```
+
+```
+write.csv(trackball,"./ball_location_match3795220.csv")
+```
+
 ```{r}
 library(ggplot2)
 library(gganimate)
 ```
 
+
 ```{r}
-a <- ggplot(trackball, aes(x,y)) +
-  geom_point() + 
+trackball %>%
+  select(x,y,row) %>%
+  ggplot(aes(x,y)) +
+  geom_point(alpha = 0.7, show.legend = FALSE) +
   transition_time(row) +
   ease_aes('linear')
 ```
 
 ```{r}
-animate(a, duration = 300)
+plot(trackball$x,trackball$y)
 ```
 
+```{r}
 
+```
 
+```{r}
+for(i in 1:length(trackball$x)){
+  fn <- paste("./",i, sep="")
+  png(filename=paste(fn,".png",sep=""))
+  plot(trackball$x[i],trackball$y[i], xlim=c(0, 120),ylim=c(0,90))
+  dev.off()
+}
+```
 
+```{r}
+p <- trackball[1:100,] %>% ggplot(aes(x,y)) +
+  geom_point()
+```
+
+```{r}
+p + transition_time(row)
+```
 
 
 

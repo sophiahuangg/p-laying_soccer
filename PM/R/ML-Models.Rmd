@@ -1,0 +1,95 @@
+---
+title: "ML-Models"
+output:
+  pdf_document: default
+  html_document: default
+date: '2022-10-09'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## To Cover:
+
+- kNN
+- Random Forests
+- Support Vector Machines
+- Linear Regression
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(kknn)
+library(ISLR)
+library(tidymodels)
+```
+
+```{r}
+n_subgroup <- 100
+
+x1 <- rnorm(n_subgroup,-2,1)
+y1 <- rnorm(n_subgroup, 0, 1)
+x2 <- rnorm(n_subgroup,2,1)
+y2 <- rnorm(n_subgroup, 0, 1)
+
+x <- c(x1,x2)
+y <- c(y1,y2)
+labels <- c(rep('0',n_subgroup), rep('1',n_subgroup))
+
+df <- data.frame(cbind(x,y,labels))
+```
+
+```{r}
+df %>% ggplot() +
+  geom_point(aes(x,y,color = labels))
+```
+
+```{r}
+set.seed(47)
+
+df_split <- initial_split(df, prop = .75)
+df_train <- training(df_split)
+df_test <- testing(df_split)
+```
+
+```{r}
+# recipe
+knn_recipe <-  recipe(as.factor(labels) ~ ., data = df) %>%
+
+# model
+knn <- nearest_neighbor() %>%
+  set_engine("kknn") %>%
+  set_mode("classification")
+
+# work_flow
+knn_wflow <- workflow() %>%
+  add_model(knn) %>%
+  add_recipe(knn_recipe)
+
+knn_fit <- knn_wflow %>%
+  fit(data = df_train)
+
+knn_fit %>% 
+  predict(new_data = df_train) %>%
+  cbind(df_train) %>%
+  metrics(truth = as.factor(labels), estimate = .pred_class)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

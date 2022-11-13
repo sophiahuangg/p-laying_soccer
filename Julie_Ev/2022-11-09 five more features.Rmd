@@ -1,0 +1,166 @@
+---
+title: "2022-11-09 more feature selection"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+# library(plyr)
+library(StatsBombR)
+library(ggplot2)
+library(readr)
+```
+
+```{r warning=F, message=F}
+# list of all free competitions
+fc <- FreeCompetitions()
+
+# id 53 is 2022 women's EUFA
+euro2022 <- fc %>%
+  filter(competition_id==53)
+
+# pulls matches from euro2022 competition
+euro2022matches <- FreeMatches(euro2022)
+
+# dataframe of free event data
+euro2022data <- free_allevents(MatchesDF = euro2022matches, Parallel = T)
+
+euro2022dataclean <- allclean(euro2022data)
+```
+
+
+```{r}
+switches <- euro2022dataclean %>%
+  group_by(match_id, team.name) %>%
+  summarise(num_switches = sum(pass.switch==T, na.rm=T))
+switches
+```
+
+```{r}
+crosses <- euro2022dataclean %>%
+  group_by(match_id, team.name) %>%
+  summarize(num_crosses = sum(pass.cross==T, na.rm=T))
+crosses
+```
+
+
+```{r}
+clearance <- euro2022dataclean %>%
+  group_by(match_id, team.name) %>%
+  summarize(num_clearance = sum(type.id==9, na.rm=T))
+clearance
+```
+
+
+
+```{r}
+percent_tackles_won <- euro2022dataclean %>%
+  group_by(match_id, team.name) %>%
+  mutate(total_tackles = sum(duel.type.name=="Tackle", na.rm=T)) %>%
+  summarize(num_tackles_won = sum(duel.outcome.name=="Won" |
+                                  duel.outcome.name=="Success" |
+                                  duel.outcome.name=="Success In Play" |
+                                  duel.outcome.name=="Success Out", na.rm=T),
+            total_tackles = mean(total_tackles)) %>%
+  mutate(tackles_won_perc = num_tackles_won/total_tackles) %>%
+  select(-num_tackles_won, -total_tackles)
+percent_tackles_won
+```
+
+```{r}
+percent_complete_dribbles <- euro2022dataclean %>%
+  group_by(match_id, team.name) %>%
+  summarize(complete_dribbles_perc = sum(dribble.outcome.name=="Complete", na.rm=T)/sum(dribble.outcome.name=="Complete" | dribble.outcome.name=="Incomplete", na.rm=T))
+percent_complete_dribbles
+```
+
+```{r}
+fivefeatures <- read_csv("fivefeatures_euro2022.csv", 
+    col_types = cols(match_id = col_integer(), 
+        fouls = col_integer(), score = col_integer())) %>%
+  rename(team.name = team_name)
+fivefeatures
+```
+
+```{r}
+tenfeatures <- fivefeatures %>%
+  merge(switches, by=c("match_id", "team.name")) %>%
+  merge(crosses, by=c("match_id", "team.name")) %>%
+  merge(clearance, by=c("match_id", "team.name")) %>%
+  merge(percent_tackles_won, by=c("match_id", "team.name")) %>%
+  merge(percent_complete_dribbles, by=c("match_id", "team.name")) %>%
+  select(-score,-outcome,outcome)
+tenfeatures
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=duration_perc)) +
+  geom_boxplot() +
+  labs(title="Possession duration percentage by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=angleratio)) +
+  geom_boxplot() +
+  labs(title="Positive to negative angle pass ratio by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=highpassperc)) +
+  geom_boxplot() +
+  labs(title="High pass percentage by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=passesreceivedperc)) +
+  geom_boxplot() +
+  labs(title="Percentage of passes received by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=fouls)) +
+  geom_boxplot() +
+  labs(title="Number of fouls by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=num_switches)) +
+  geom_boxplot() +
+  labs(title="Number of switches by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=num_crosses)) +
+  geom_boxplot() +
+  labs(title="Number of crosses by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=num_clearance)) +
+  geom_boxplot() +
+  labs(title="Number of clearances by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=tackles_won_perc)) +
+  geom_boxplot() +
+  labs(title="Percentage of tackles won by outcome")
+```
+
+```{r}
+tenfeatures %>%
+  ggplot(aes(x=outcome, y=complete_dribbles_perc)) +
+  geom_boxplot() +
+  labs(title="Percentage of complete dribbles by outcome")
+```
+

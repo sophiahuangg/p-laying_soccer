@@ -1,0 +1,168 @@
+---
+title: "2022-11-19 ten feature rf"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, cache=TRUE, fig.align = "center")
+options(digits=5, pillar.sigfig = 7)
+library(dplyr)
+library(plyr)
+library(StatsBombR)
+library(ggplot2)
+
+library(tidyverse)
+library(ISLR)
+library(tidymodels)
+library(readr)
+library(vip)
+```
+
+```{r}
+tenfeatures <- read_csv("Julie_Ev_tenfeatures.csv", 
+    col_types = cols(match_id = col_integer(), 
+        team.name = col_character(), fouls = col_integer(), 
+        num_switches = col_integer(), num_crosses = col_integer(), 
+        num_clearance = col_integer())) %>%
+  mutate(outcome = as.factor(outcome))
+```
+
+```{r}
+tenfeatclean <- tenfeatures %>%
+  select(-match_id, -team.name, -away_team_name)
+tenfeatclean
+```
+
+```{r}
+set.seed(4747)
+euro22_split <- initial_split(tenfeatclean, prop = 0.75)
+euro22_train <- training(euro22_split)
+euro22_test <- testing(euro22_split)
+```
+
+```{r}
+# recipe
+euro22_recipe <-
+  recipe(outcome ~ ., data = euro22_train) 
+
+# model
+euro22_rf <- rand_forest(mtry = tune(), trees = tune()) %>%
+  set_engine('ranger', importance = 'permutation') %>%
+  set_mode('classification')
+
+# workflow
+euro22_rf_wflow <- workflow() %>%
+  add_model(euro22_rf) %>%
+  add_recipe(euro22_recipe)
+
+# CV
+set.seed(47)
+euro22_vfold <- vfold_cv(euro22_train, v=4)
+
+# param
+rf_grid <- grid_regular(mtry(range = c(1,10)),
+                         trees(range = c(1, 401)),
+                         levels = c(10, 9))
+
+# tuning
+euro22_rf_tuned <- euro22_rf_wflow %>%
+  tune_grid(resamples = euro22_vfold, 
+           grid = rf_grid)
+
+# plot
+euro22_rf_tuned %>%
+  autoplot()
+```
+
+
+```{r}
+euro22_rf_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  arrange(desc(mean))
+```
+
+
+```{r}
+euro22_rf_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  ggplot() + 
+  geom_line(aes(x = trees, y = mean, color = as.factor(mtry)))
+```
+
+
+```{r}
+euro22_rf_best <- finalize_model(
+  euro22_rf,
+  select_best(euro22_rf_tuned, 'accuracy')
+)
+euro22_rf_best
+```
+> The best model has parameters mtry=4 and trees=51.
+
+```{r}
+euro22_rf_final <-
+  workflow() %>%
+  add_model(euro22_rf_best) %>%
+  add_recipe(euro22_recipe) %>%
+  fit(data = euro22_train)
+
+euro22_rf_final %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  ggplot() +
+  geom_point(aes(x = duration_perc, y = .pred_class))
+
+euro22_rf_final %>%
+  extract_fit_parsnip() %>%
+  vip(geom = "point")
+```
+# Test predictions
+```{r}
+euro22_rf_final %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  summarize(accuracy = mean(.pred_class == outcome))
+```
+
+
+# Now let's try bagging!
+
+
+```{r}
+# bagging!
+euro22_recipe <-
+  recipe(outcome ~ ., data = euro22_train)
+
+euro22_bag <- rand_forest(mtry = 10) %>%
+  set_engine('ranger', importance = 'permutation', oob.error=TRUE) %>%
+  set_mode('classification')
+
+euro22_bag_wflow <- workflow() %>%
+  add_model(euro22_bag) %>%
+  add_recipe(euro22_recipe)
+
+# fit
+euro22_bag_fit <-
+  euro22_bag_wflow %>%
+  fit(data = euro22_train)
+
+euro22_bag_fit
+```
+
+
+```{r}
+# plot
+euro22_bag_fit %>%
+  pull_workflow_fit() %>%
+  vip()
+
+# fit
+euro22_bag_fit %>%
+  predict(new_data = euro22_test) %>%
+  cbind(euro22_test) %>%
+  summarize(accuracy = mean(.pred_class==outcome))
+```
+
+
